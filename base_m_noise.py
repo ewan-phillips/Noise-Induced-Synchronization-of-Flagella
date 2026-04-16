@@ -14,7 +14,6 @@ import json
 import sys
 import networkx as nx   
 from numba import jit 
-#import sdeint
 
 import scipy
 from scipy.signal import find_peaks
@@ -26,7 +25,6 @@ from statsmodels.tsa.stattools import acf
 
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
-#from matplotlib import rc
 
 import seaborn as sns
 import collections.abc as ca
@@ -49,6 +47,7 @@ params = {'xtick.labelsize': 22, 'ytick.labelsize': 22,
               'axes.titlesize': 22,  'font.size': 22, 
               'legend.handlelength': 2}
 
+'''Calculate 2*pi modulo of oscillator'''
 def osc_mod(x):
     phi = [s%(2*pi) for s in x]
 
@@ -65,14 +64,17 @@ def rotate(l, n):
 def f_(X, om, lam=0):
     return(om)
 
+'''Sinusoidal drift term'''
 @jit(nopython=True)
 def f_sin(X, om, lam=0):
     return(om + lam*np.sin(X))
 
+'''Linear drift term'''
 @jit(nopython=True)
 def f_lin(X, om, lam=0):
     return(om + lam*X)
 
+'''Monomial drift term'''
 @jit(nopython=True)
 def f_mon(X, om, n=0): 
     return(om * (abs(X)**n))
@@ -85,6 +87,7 @@ def f_mon_gen(X, a, n=[0,1]):
 def f_mon_(X, om, n=0): 
     return(np.sign(X) * om * (abs(X)**n))
 
+'''Monomial diffusion term'''
 @jit(nopython=True)
 def g_mon(X, D, m=1):
     return(D * (abs(X)**m))
@@ -101,6 +104,7 @@ def g_mon_fix1(X, D, m=1):
 def g(X, D, m=None):
     return(D * np.sin(X))
 
+'''Linear diffusion term'''
 @jit(nopython=True)
 def g_lin(X, D, m=None):
     return(D * X)
@@ -112,6 +116,7 @@ def g_lin_p(X, D, m=None):
     elif X <= -np.pi/2: X += np.pi
     return(D * X)
 
+'''Label plots'''
 def labels(ax, osc=True, ylab='theta', ylim=None):
 
     if osc==True:
@@ -129,6 +134,7 @@ def labels(ax, osc=True, ylab='theta', ylim=None):
 
     if ylim: ax.set_ylim([ylim[0],ylim[1]])
 
+'''Label time plots'''
 def tlabels(ax):
     ax.set_yticks([-np.pi, 0, np.pi])
     ax.set_yticklabels([r'$-\pi$', r'0', r'$\pi$'])
@@ -153,24 +159,17 @@ def FPE_ev(om, D1, D2, T, f, g, dt=0.001,
     snap = [int(0.005*n_), int(0.05*n_), int(0.95*n_)]
     bins = np.arange(0., 16., 16/200) 
 
-    #fig, ax = plt.subplots(1, 1, figsize=(4, 2))
     if s: fig, ax = plt.subplots(1, 1, figsize=(8, 4))
-    #else: snap = []
 
     tl, meanl = [], []
 
     peak, fwhm = [], []
 
     for i in range(n_):
-        # This is for calculating mean!
         X += dt * f(X, om) + sdt * g(X, D1_) * np.random.randn(ntrials) + \
                                    sdt * D2_ * np.random.randn(ntrials)
         
-        # this is for single trajectory!
-        #X += dt * f(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
-        #                            sdt * D2_ * np.random.randn()
-        
-        if i in snap:  # (5, 50, 900)
+        if i in snap:  
             hist, _ = np.histogram(X, bins=bins)
 
             peak.append(max(hist))
@@ -180,13 +179,8 @@ def FPE_ev(om, D1, D2, T, f, g, dt=0.001,
             if s:
                 ax.plot((bins[1:] + bins[:-1]) / 2, hist, label=f"t={i * dt:.2f}")
                 ax.axhline(max(hist), color='r')
-                #ax.axvline(lower_x, color='g')
-                #ax.axvline(upper_x, color='g')
             
         if i%10==0: 
-            #if i==100: 
-            #    print("X = ", X)
-            #    print("mean = ", np.mean(X))
             meanl.append(np.mean(X))
             tl.append(round(i*dt, 4))
 
@@ -214,14 +208,11 @@ def SDE_ev1(om, D1, D2, T, f, g, dt=0.001, xinit=10, td=True, steps=1, osc=False
     tl, Xl = [], []
     X = xinit
 
-    #if not step: step = int(T/(dt*10000))
     step = int(T/(dt*10000*steps))
     if step == 0: step +=1
 
     if td==True:
         for i in range(n):
-            #X += dt * f(X, i*dt) + sdt * g(X, D1_) * np.random.randn() + \
-            #                        D2_ * sdt * np.random.randn()
             dx = dt * f(X, om) + sdt * g(X, D1_) * np.random.randn() + \
                                    sdt * D2_ * np.random.randn()
             if math.isnan(dx): continue 
@@ -263,20 +254,13 @@ def SDE_ev(om, D1, D2, T, f, g, dt=0.001, xinit=10,
     tl, Xl = [], []
 
     step = int(T/(dt*10000*steps))
-    #print(step)
 
     if meth=='ito':
         print("method = Ito")
         for i in range(n_):
-            #dx = dt * f(X, om, lam=lam) + sdt * g(X, D1_) * np.random.randn() + \
-            #                           sdt * D2_ * np.random.randn()
 
             dx = dt * f(X, om, lam=n) + sdt * g(X, D1_) * np.random.randn() + sdt * D2_ * np.random.randn() 
          
-            #dx = dt * f(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \ 
-            #                        sdt * D2_ * np.random.randn() 
- 
-            #if dx != np.nan: X += dx 
             if math.isnan(dx): continue 
             X += dx 
 
@@ -328,8 +312,6 @@ def det_mean(om, D1, T, f_, g, dt=0.001, xinit=10,
             X += dx
 
             if i%step==0: 
-                #clear_output(wait=True)
-                #print(i*dt, X)
 
                 if osc:
                     X = (X + 2*pi)%(2*pi) 
@@ -371,58 +353,6 @@ def SDE_ev_strat(om, D1, D2, T, f, g, dt=0.001, xinit=10, n=0, m=1, osc=False, s
 
     return(tl, Xl)
 
-'''
-@jit(nopython=True)
-def stat_den_sde_old(om, D1, D2, T, f, g, dt, osc=False, Nb=300, low=0, lim=np.pi, xinit=0.1, n=0, m=1, start=50000, lam=0): 
-
-    n_ = int(T / dt)  
-    st = start
-    Pl = np.zeros(Nb) 
-    D1_, D2_ = np.sqrt(2*D1), np.sqrt(2*D2)
-    sdt = np.sqrt(dt)
-    X = xinit 
-
-    if osc:
-        xm = -lim       
-        del_x = 2*lim/Nb
-        x = np.arange(-lim,lim,del_x)
-        X = 2*lim*np.random.rand() - lim
-        norm = 1/(del_x*(n_-st))
-
-        for i in range(n_):
-
-            X += dt * f(X, om, lam=lam) + sdt * g(X, D1_) * np.random.randn() + \
-                                    sdt * D2_ * np.random.randn() 
-
-            X = (X + 2*lim)%(2*lim) 
-            if(X >= lim): X -= 2*lim 
-
-            if math.isnan(X): X = 2*lim*np.random.rand() - lim
-
-            if i > st: 
-                k = int(np.floor((X-xm)/del_x))
-                Pl[k] += norm 
-    else:    
-        b = lim # 2
-        del_x = abs(b-low)/Nb
-        x = np.arange(low,b,del_x)
-        X = xinit #0.1
-        norm = 1/(del_x*(n_-st))
-
-        for i in range(n_):
-            dx = dt * f(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
-                                    sdt * D2_ * np.random.randn()
-
-            if math.isnan(dx): continue
-            X += dx
-
-            if i > st:  
-                k = int(np.floor((X)/del_x)) 
-                if abs(k) < Nb:
-                    Pl[k + int(abs(low)/del_x)] += norm  
-
-    return(x, Pl)
-'''
 
 @jit(nopython=True)
 def stat_den_sde(om, D1, D2, T, f_, g, dt, osc=False, Nb=300, low=0, lim=np.pi, xinit=0.1, n=0, m=1, start=50000, sig=None): # lam=0,
@@ -444,27 +374,18 @@ def stat_den_sde(om, D1, D2, T, f_, g, dt, osc=False, Nb=300, low=0, lim=np.pi, 
         norm = 1/(del_x*(n_-st))
 
         for i in range(n_):
-            #X += dt * f(X, om, lam=lam) + sdt * g(X, D1_) * np.random.randn() + \
-            #                        sdt * D2_ * np.random.randn() 
-
             X += dt * f_(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
                                     sdt * D2_ * np.random.randn()
-
-            #X = eul_step(X, om, D1_, D2_, f, g, dt, sdt) 
-            #X = srk4_step(X, om, D1_, D2_, f, g, dt) 
-            #dt, X = var_step(X, om, D1_, D2_, f, g, dt, i) 
 
             X = (X + 2*lim)%(2*lim) 
             if(X >= lim): X -= 2*lim 
 
             if math.isnan(X): X = 2*lim*np.random.rand() - lim
 
-            #if i%1000==0: print(X)
             if i > st: 
                 k = int(np.floor((X-xm)/del_x))
                 Pl[k] += norm 
-    else:  
-        #print("")  
+    else:   
         b = lim # 2
         del_x = abs(b-low)/Nb     
         x = np.arange(low,b,del_x)
@@ -472,48 +393,16 @@ def stat_den_sde(om, D1, D2, T, f_, g, dt, osc=False, Nb=300, low=0, lim=np.pi, 
         norm = 1/(del_x*(n_-st))
 
         for i in range(n_):
-            #X += dt * f(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
-            #                        D2_ * sdt * np.random.randn()
-            
-            #print(X, f(X, om, n), g(X, D1_, m))
-            #dx = dt * f_(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
-            #                        sdt * D2_ * np.random.randn()
-
-            #dx = dt * om + sdt * g(X, D1_, m) * np.random.randn() + \
-            #                        sdt * D2_ * np.random.randn()
 
             X += dt * f_(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
                                     sdt * D2_ * np.random.randn()
-            
-            # There seems to be a problem with f(X) in this code. 
-            # This was to do with using the symbol n for range and parameter!
-
-            #if math.isnan(dx): continue
-            #X += dx
-
-            ### Remove only for double well potential ###
-            #if X < 0: X = abs(X) # is this justified
-            ###
-
-            # afterall in the case of additive noise X is expected to fall below 0
 
             if i > st:  
                 k = int(np.floor((X)/del_x)) # abs(X)
-                #print("k = ", k, ", k + int = ", k + int(abs(low)/del_x))
-                #if i % 100 == 0: print(X, k)
-                #if abs(k) < Nb and abs(k) >= 0:
-                #if (abs(k) < Nb) and (X > 0):
+
                 if (abs(k) < Nb):
-                    Pl[k + int(abs(low)/del_x)] += norm   # maybe use this instead
+                    Pl[k + int(abs(low)/del_x)] += norm 
                     #Pl[k] += norm 
-
-                    #if X > 0:
-                    #if X <= 0:
-                    #    Pl[-k] += norm 
-                #else:
-                    #print("k = ", k, ", k - Nb = ", k-Nb)
-        #Pl = Pl/(sum(Pl)*del_x)
-
     return(x, Pl)
 
 @jit(nopython=True)
@@ -536,9 +425,6 @@ def stat_den_sde_gen(a1, a2, D1, D2, T, f_, g, dt, osc=False, Nb=300, low=0, lim
         norm = 1/(del_x*(n_-st))
 
         for i in range(n_):
-            #X += dt * (f_(X, om, n) + 0.5*g_mon_der(X, D1_, m)*g(X, D1_, m)) + \
-            #     sdt * g(X, D1_, m) * np.random.randn() + \
-            #                        sdt * D2_ * np.random.randn()
 
             X += dt * (f_(X, a1, n) + f_(X, a2, m_)) + \
                  sdt * g(X, D1_, m) * np.random.randn() + sdt * D2_ * np.random.randn()
@@ -739,13 +625,9 @@ def burst_counter(om, D1, D2, T, f, g, dt, a2=0, n_=0, m_=1, X0=0, a=-np.pi/2,
     bursts = np.zeros(4) 
     m_2 = (2*m_)-1
     c1  = a2 + (D1*m_)
-    #print("a2 = ", a2, "2m-1 = ", m_2)
 
     step = int(T/(dt*10000*steps))
     if step == 0: step +=1
-
-    #if act=='res': X0 = 0
-    #elif act=='ref': X0 = b
 
     for i in range(n): 
         #X += dt * f(X, om) + sdt * g(X, D1_) * np.random.randn() + \
@@ -755,30 +637,9 @@ def burst_counter(om, D1, D2, T, f, g, dt, a2=0, n_=0, m_=1, X0=0, a=-np.pi/2,
         if meth=='strat': 
             dx = dt * (f(X, om, lam=a2) + D1*np.abs(X)) + \
                 sdt * g(X, D1_, m_) * np.random.randn() + sdt * D2_ * np.random.randn()
-            #dx = dt * (f(X, om, lam=a2) + D1*np.cos(X)*np.sin(X)) + \  
-            #        sdt * g(X, D1_, m_) * np.random.randn() + sdt * D2_ * np.random.randn()
         else:
             dx = dt * f(X, om, lam=a2) + \
                     sdt * g(X, D1_, m_) * np.random.randn() + sdt * D2_ * np.random.randn()
-        
-        # mon case (strat)
-        #dx = dt * (f(X, om, n_) + f(X, c1, m_2)) + \
-        #        sdt * g(X, D1_, m_) * np.random.randn() + sdt * D2_ * np.random.randn()
-
-        # mon case (ito)
-        #dx = dt * (f(X, om, n_) + f(X, a2, m_2)) + \
-        #        sdt * g(X, D1_, m_) * np.random.randn() + sdt * D2_ * np.random.randn()
-        
-        # sin case (strat)
-        #dx = dt * (om + (D1*np.cos(X) - a2)*np.sin(X)) + \
-        #        sdt * D1_ * np.sin(X) * np.random.randn() + sdt * D2_ * np.random.randn()
-
-        # sin case (ito)
-        #dx = dt * (om - a2*np.sin(X)) + \
-        #        sdt * D1_ * np.sin(X) * np.random.randn() + sdt * D2_ * np.random.randn()
-
-                #print("cross a = ", bursts[1])
-                #clear_output(wait=True)    
 
         if math.isnan(dx): print("nan at ", i); continue 
         X += dx
@@ -794,7 +655,6 @@ def burst_counter(om, D1, D2, T, f, g, dt, a2=0, n_=0, m_=1, X0=0, a=-np.pi/2,
         if (X >= b):
                 bursts[0] += 1
                 X = X0 
-                #print("cross b = ", bursts[0])
 
         if i%step==0: 
             Xl.append(X)
@@ -814,7 +674,6 @@ def poisson(om, D1, D2, T, f, g, dt, X=0, hour=1000, height=np.pi, res=True):
     Pl = np.zeros(Nb)
     del_x = 50/Nb
 
-    #temp, no, dist = 0, [], []
     temp, no, dist = 0, [0,0,0], []
     norm = 1/(del_x*(n-st))
 
@@ -824,9 +683,6 @@ def poisson(om, D1, D2, T, f, g, dt, X=0, hour=1000, height=np.pi, res=True):
         inc = dt * f(X, om) + sdt * g(X, D1_) * np.random.randn() + \
                                     sdt * D2_ * np.random.randn()
         X += inc
-
-        #X += dt * f(X, om) + sdt * g(X, D1_) * np.random.randn() + \
-        #                           sdt * D2_ * np.random.randn()
                                              
         time += dt
 
@@ -836,16 +692,6 @@ def poisson(om, D1, D2, T, f, g, dt, X=0, hour=1000, height=np.pi, res=True):
             time = 0
 
             if res==True: X = 0
-
-        #Y = X
-
-        #if i%hour==0:
-        #    no.append(temp)
-
-        #    k = int(np.floor(X/del_x))
-        #    Pl[k] += norm 
-
-        #    temp = 0
 
     return(no, dist, Pl)
 
@@ -867,7 +713,6 @@ def num_burst(D_dm, om, Dadd, f_, g, dt, T, a2=0, n_=0, m_=[1], init=0, ref=Fals
             for m in m_:
                 tl, X, b_ = burst_counter(om, i, j, T, f_, g, dt, a2=a2, n_=n_, m_=m, 
                                          X0=init, a=a, b=b, act=act, meth=meth) 
-                #b_dm.append(b_[0]/tl[-1]); b2_dm.append(b_[1]/tl[-1]) 
                 b_dm.append(b_[0]/T); b2_dm.append(b_[1]/T) 
 
     if not ax:
@@ -879,8 +724,6 @@ def num_burst(D_dm, om, Dadd, f_, g, dt, T, a2=0, n_=0, m_=[1], init=0, ref=Fals
     b_dm_num = np.array(b_dm) + np.array(b2_dm)
     ol = ['bo', 'go', 'co', 'mo', 'ro']
     ll = ['b-', 'g-', 'c-', 'm-', 'r-']
-    
-    #Dadd 
 
     if (len(D_dm) > len(Dadd)) and (len(D_dm) > len(m_)):
         ax.plot(D_dm, b_dm_num, ol[num], markersize=ms, mec = 'k', label=r"$D_{\text{add}} =$ "+str(Dadd[0]))   # lab1
@@ -906,75 +749,6 @@ def num_burst(D_dm, om, Dadd, f_, g, dt, T, a2=0, n_=0, m_=[1], init=0, ref=Fals
         f.savefig('/Users/tphillips/multiplicative_noise/pics/'+save+'.png', bbox_inches='tight', format='png', dpi=120)
 
     return(f, ax)
-
-#om, D1, D2, T, f, g, dt, n_=0, m_=1, X0=0, a=-np.pi/2, 
-#                  b=np.pi/2, act='res', steps=1 
-
-def savitzky_golay(y, window_size, order, deriv=0, rate=1):
-    r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
-    The Savitzky-Golay filter removes high frequency noise from data.
-    It has the advantage of preserving the original shape and
-    features of the signal better than other types of filtering
-    approaches, such as moving averages techniques.
-    Parameters
-    ----------
-    y : array_like, shape (N,)
-        the values of the time history of the signal.
-        window_size : int
-        the length of the window. Must be an odd integer number.
-    order : int
-        the order of the polynomial used in the filtering.
-        Must be less then `window_size` - 1.
-    deriv: int
-        the order of the derivative to compute (default = 0 means only smoothing)
-    Returns
-    -------
-    ys : ndarray, shape (N)
-        the smoothed signal (or it's n-th derivative).
-    Notes
-    -----
-    The Savitzky-Golay is a type of low-pass filter, particularly
-    suited for smoothing noisy data. The main idea behind this
-    approach is to make for each point a least-square fit with a
-    polynomial of high order over a odd-sized window centered at
-    the point.
-    """
-    import numpy as np
-    from math import factorial
-       
-    try:
-        window_size = np.abs(np.int(window_size))
-        order = np.abs(np.int(order))
-    except ValueError: #, msg:
-        raise ValueError("window_size and order have to be of type int")
-    if window_size % 2 != 1 or window_size < 1:
-        raise TypeError("window_size size must be a positive odd number")
-    if window_size < order + 2:
-        raise TypeError("window_size is too small for the polynomials order")
-    order_range = range(order+1)
-    half_window = (window_size -1) // 2
-    # precompute coefficients
-    b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
-    m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
-    # pad the signal at the extremes with
-    # values taken from the signal itself
-    firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
-    lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
-    y = np.concatenate((firstvals, y, lastvals))
-    return np.convolve( m[::-1], y, mode='valid')
-
-def smooth_data_fft(arr, span):  # the scaling of "span" is open to suggestions
-    from scipy.fftpack import rfft, irfft
-    w = rfft(arr)
-    spectrum = w ** 2
-    cutoff_idx = spectrum < (spectrum.max() * (1 - np.exp(-span / 2000)))
-    w[cutoff_idx] = 0
-    return irfft(w)
-
-def smooth(y, box_pts):
-    box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')
-    return y_smooth
  
 '''Numerical and analytical bursts on the right side''' 
 def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,  
@@ -994,24 +768,6 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
                 tl, X, b_ = burst_counter(om, i, j, T, f_, g, dt, a2=a2, n_=n_, 
                                           m_=m, X0=init, a=a, b=b, act=act) 
                 b_dm.append(b_[0]/T); b2_dm.append(b_[1]/T)
-                #print(b_[0]/T, b_[1]/T)
-    '''
-
-    s = '/Users/tphillips/multiplicative_noise/sims/'
-    df=pd.read_csv(s+'num_burst_om1_m1_xc4_T100000_dtp002_xinit0p1.csv', sep='\t') 
-    # 'num_burst_om1_m1_xc4_T100000_dtp0002.csv'
-    # 'num_burst_om1_m1_xc4_T1000_dtp000005.csv'
-    #print(df)
-
-    for i in D_dm:  
-        for j in Dadd: 
-            for m in m_:
-                #print(round(i,1), round(m,1), round(n_,1), round(b,1)) 
-                df2 = df[(round(df['D1'],1)==round(i,1)) & (round(df['m'],1)==round(m,1))  
-                       & (round(df['n'],1)==round(n_,1)) & (round(df['xc'],1)==round(b,1))] 
-                #print(df2) 
-                b_dm.append(np.array(df2['x'])[0]) 
-    '''
 
     st = "/Users/tphillips/multiplicative_noise/"
     if an=='simp': 
@@ -1022,15 +778,13 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
         df = df.dropna(axis='columns', how='all')
     else:
         df = pd.DataFrame({'x' : [], 'D1' : [], 'D2' : [], 'm' : [], 'Tn' : []})
-
-    # a = 0.1
+      
     df.columns=['x', 'D1', 'D2', 'm', 'Tn']
 
     b_dm_an = []
 
     for i in D_dm:
         for j in Dadd:
-            #for m in m_:
             df2 = df[df['D1'] == i]
             df2 = df2[df2['x'] == 0]
             df2 = df2[df2['D2'] == j] 
@@ -1048,7 +802,6 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
                 else: b_dm_an.append(np.nan)
 
     if not ax:
-        #print("define figure")
         s = 1.0
         params = {'xtick.labelsize': s*20, 'ytick.labelsize': s*20,
               'axes.labelsize': s*20, 'axes.titlesize': s*20,  
@@ -1058,11 +811,9 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
         f, ax = plt.subplots(1, 1, figsize=(6, 4))
         lab1, lab2 = 'sin. num.', 'sin. an.'
     else: 
-        #print("add to figure")
         lab1, lab2 = None, None
 
-    b_dm_num = np.array(b_dm) #+ np.array(b2_dm)
-    #ol = ['bo', 'go', 'co', 'mo', 'ro']
+    b_dm_num = np.array(b_dm)
     ol = ['bo', 'g>', 'cs', 'm8', 'rd']
     ll = ['b-', 'g-', 'c-', 'm-', 'r-']
 
@@ -1072,12 +823,9 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
     if leg=='n': lab1=r"$n = {}$".format(n_)
  
     if log: 
-        #print("log true")
         ax.loglog(max_, b_dm_num, ol[num], markersize=8, mec = 'k', label=lab1) 
     else:
-        #print("log not true")
         ax.plot(max_, b_dm_num, ol[num], markersize=9, mec = 'k', label=lab1)
-        #ax.plot(max_, np.array([b_dm_num[0]] + smooth(b_dm_num, 3)[1:-1].tolist() + [b_dm_num[-1]]), ll[num]) # mute out!
 
     if D_dm == max_: ax.set_xlabel(r'$D_m$')
     elif m_ == max_: ax.set_xlabel(r'$m$')
@@ -1087,7 +835,7 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
     ax.tick_params(bottom=True, left=True)
     ax.tick_params(direction="in", length=4, width=1, grid_alpha=0.5)
 
-    if b_dm_an: ax.plot(max_, b_dm_an, ll[num]) # , label=lab2
+    if b_dm_an: ax.plot(max_, b_dm_an, ll[num]) 
 
     if legend: ax.legend(fontsize=14, ncol=2, framealpha=0.5)
 
@@ -1100,7 +848,6 @@ def num_an_burst(D_dm, om, Dadd, f_, g, dt, T, n_=0, m_=[1], a2=0, init=0,
 def num_burst_(ax, D_dm, m_=[1], b=np.pi/2, file='num_burst_om1_m1_T10000_dtp000002_xinit0p1', sep='\t'): 
     
     s = '/Users/tphillips/multiplicative_noise/sims/'
-    #df=pd.read_csv(s+'num_burst_om1_m1_xc4_T100000_dtp002_xinit0p1.csv', sep='\t') 
     df=pd.read_csv(s+file+'.csv', sep=sep) # ';'
 
     n_ = [0.0, 0.2, 0.4, 0.6]
@@ -1118,9 +865,6 @@ def num_burst_(ax, D_dm, m_=[1], b=np.pi/2, file='num_burst_om1_m1_T10000_dtp000
         b_dm_num = np.array(b_dm) 
         ax.loglog(D_dm[::2], b_dm_num[::2], ol[j], markersize=8, mec = 'k', label=r'$n =$ {}'.format(n_[j])) 
 
-    #ax.set_xlabel(r'$D$')
-    #ax.legend(fontsize=14, ncol=2, framealpha=0.9)
-
     return(ax)
 
 '''Numerical and analytical bursts on the right side'''
@@ -1132,22 +876,17 @@ def an_burst(f, ax, save=False, norm=1, i=0):
          "Dm_n0.6_m1_b4_xmin0p01.txt", "Dm_n0.6_m1_b4_xmin0p002.txt", 
          "Dm_n0.6_m1_b4_xmin0p001.txt"]
     df=pd.read_csv(st+"T_mon_closed_"+l[i], sep=",", header=None)
-    #df=pd.read_csv(st+"T_mon_closed_Dm_n0.6_m1_b4.txt", sep=",", header=None)
     df.columns=['d', 'Tn0', 'Tn02', 'Tn04', 'Tn06']
     df = df.dropna(axis='columns', how='all')
 
     ll = ['b-', 'g-', 'c-', 'm-', 'r-']
 
     s = 4
-    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn0'])[s:],  ll[0]) # , label=r'$n = 0.0$'
-    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn02'])[s:], ll[1]) #, label=r'$n = 0.2$'
-    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn04'])[s:], ll[2]) #, label=r'$n = 0.4$'
-    if i != 3: ax.loglog(df['d'][s:], norm*1/np.array(df['Tn06'])[s:], ll[3]) # , label=r'$n = 0.6$'
+    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn0'])[s:],  ll[0])
+    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn02'])[s:], ll[1]) 
+    ax.loglog(df['d'][s:], norm*1/np.array(df['Tn04'])[s:], ll[2]) 
+    if i != 3: ax.loglog(df['d'][s:], norm*1/np.array(df['Tn06'])[s:], ll[3]) 
 
-    #ax.legend(fontsize=14, ncol=2)
-
-    #ax.grid(which='major', color='grey', linestyle='-', alpha=0.2)
-    #ax.grid(which='minor', color='grey', linestyle='--', alpha=0.15)
     ax.tick_params(bottom=True, left=True) 
     ax.tick_params(direction="in", length=4, width=1, grid_alpha=0.5) 
 
@@ -1197,19 +936,6 @@ def num_an_burst2(D_dm, om, Dadd, dt, T, init=0,
 
     return(f, ax)
 
-#X = srk4_step(X, om, D1_, D2_, f, g, dt)
-#dt, X = var_step(X, om, D1_, D2_, f, g, dt, i)
-
-#X = abs(X)  # This artificially creates a reflecting boundary on the left side. 
-#if dt>0.00001 and i%100==0: Xl.append(X)
-#elif i%10000==0: Xl.append(X)
-#Xr = np.roll(Xr, -1); Xr[-1] = X # Xr.rotate(-1) 
-
-##if i > st: 
-#for i in range(len(blist)):
-#    if (X >= blist[i]) and (max(Xr[:-1]) < blist[i]):
-#        bursts[i] += 1
-
 '''Obtain distribution of the laminar lengths'''
 @jit(nopython=True)
 def burst_hist(om, D1, D2, T, f, g, dt, n=0, m=1, X_in=0, height=np.pi): 
@@ -1222,20 +948,11 @@ def burst_hist(om, D1, D2, T, f, g, dt, n=0, m=1, X_in=0, height=np.pi):
     time = 0
 
     for i in range(n_): 
-        #print(i)
         inc = dt * f(X, om, n) + sdt * g(X, D1_, m) * np.random.randn() + \
                                     sdt * D2_ * np.random.randn()
 
-        #inc = dt * f(X, om) + sdt * g(X, D1_) * np.random.randn() + \
-        #                            sdt * D2_ * np.random.randn()
-
         X += inc                                 
         time += dt
-
-        #if ((X < height) and (X-inc >= height)):
-        #    time = 0
-        #elif ((X >= height) and (X-inc < height)):
-        #    dist.append(time)
 
         if (X >= height):
             dist.append(time)
@@ -1282,8 +999,6 @@ def exp_dec_dist(Dm, Da, f_, g_, n=0, m=1, T=5000000, X=0, height=np.pi/4,
         T2 += delT
         print(T2, len(y))
         if len(y) < 2000: print('len y = ', len(y))
-
-    #n, bins, patches = ax.hist(y, density=True, bins=200) 
 
     try:
         n_, bins = np.histogram(y, density=True, bins=200) 
@@ -1482,7 +1197,6 @@ def stat_den_strat_l(om, D1, D2, T, f_, g, dt, osc=False, Nb=300,
                     Pl[k + int(abs(low)/del_x)] += norm   
     if lin=='zero':
         '''Canonical case'''
-        #print("lin = ", lin)
         for i in range(n_):
             
             X += dt * (om + (D1-sig)*X) + \
@@ -1495,23 +1209,10 @@ def stat_den_strat_l(om, D1, D2, T, f_, g, dt, osc=False, Nb=300,
                     Pl[k + int(abs(low)/del_x)] += norm 
     else:
         for i in range(n_):
-            #print("lin = ", lin)
             X += dt * (om + (sig)*X) + \
                  sdt * D1_ * X * np.random.randn() + \
                                 sdt * D2_ * np.random.randn()
             
-            #X += dt * (om + (D1+sig)*X) + \
-            #     sdt * D1_ * X * np.random.randn() + \
-            #                    sdt * D2_ * np.random.randn()
-                                
-            #X += dt * (om + (D1+sig)*(X-np.pi)) + \
-            #     sdt * D1_ * (X-np.pi) * np.random.randn() + \
-            #                    sdt * D2_ * np.random.randn()
-
-            #if X > 10:
-            #    X = 10 - abs(X-10)/2
-            #if X > 100:
-            #    X = 0
             if i > st:  
                 k = int(np.floor((X)/del_x)) 
                 if (abs(k) < Nb):
@@ -1528,14 +1229,10 @@ def max_fwhm(om0=1, sig=-1, D1_inc=0.4, D2=0, T=10000, dt=0.001, # lim=np.pi
     fwhm_l, fwhm_, max_an = [], [], []
     sig_ = sig
 
-    #for i in range(1,r): 
-    #    D = D0 + D1_inc*i 
-    #    Dlist.append(D) #; Dlist_l.append(D)
-
     for i in range(1,r): 
         D = D0
         om = om0 + D1_inc*i
-        Dlist.append(om) #; Dlist_l.append(D)
+        Dlist.append(om) 
 
         if v_sig: sig_ = -D + sig
 
@@ -1543,24 +1240,20 @@ def max_fwhm(om0=1, sig=-1, D1_inc=0.4, D2=0, T=10000, dt=0.001, # lim=np.pi
 
         '''Sinusoidal'''
         x_per, P_per = stat_den_strat_s(om, D, D2, T, f_sin, g, dt, osc=True, Nb=1000, sig=sig_) 
-        xmax = find_max(x_per, P_per) # [:500] 
+        xmax = find_max(x_per, P_per) 
         p_max4.append(xmax-np.pi)
 
         hp = int(len(x_per)/2)
         lower_x, upper_x = half_max_x(x_per[hp:], P_per[hp:])
 
         fwhm_.append(upper_x - lower_x)
-        #if klist[i-1] == 1: fwhm_.append(np.pi - (upper_x - lower_x))
-        #else: fwhm_.append(upper_x - lower_x)
 
         '''Linear'''
-        
         x_per_l, P_per_l = stat_den_strat_l(om, D, D2, T, f_lin, g_lin, dt_l, 
                                             osc=False, Nb=1000, sig=-sig_, lim=lim, lin='zero')
         xmax_l = find_max(x_per_l, P_per_l)
         p_max_lin.append(xmax_l)
 
-        #hp = int(0.75*len(x_per_l))
         lower_x_l, upper_x_l = half_max_x(x_per_l, P_per_l)
         fwhm_l.append(upper_x_l - lower_x_l)
 
@@ -1587,14 +1280,10 @@ def max_fwhm_om(om0=1, sig=-1, om_inc=0.4, D2=0, T=10000, dt=0.001, # lim=np.pi
     fwhm_l, fwhm_, max_an = [], [], []
     sig_ = sig
 
-    #for i in range(1,r): 
-    #    D = D0 + D1_inc*i 
-    #    Dlist.append(D) #; Dlist_l.append(D)
-
     for i in range(1,r): 
         D = D0
         om = om0 + om_inc*i
-        om_list.append(om) #; Dlist_l.append(D)
+        om_list.append(om) 
 
         if v_sig: sig_ = -D + sig
 
@@ -1602,24 +1291,20 @@ def max_fwhm_om(om0=1, sig=-1, om_inc=0.4, D2=0, T=10000, dt=0.001, # lim=np.pi
 
         '''Sinusoidal'''
         x_per, P_per = stat_den_strat_s(om, D, D2, T, f_sin, g, dt, osc=True, Nb=1000, sig=sig_) 
-        xmax = find_max(x_per, P_per) # [:500] 
+        xmax = find_max(x_per, P_per) 
         p_max4.append(xmax-np.pi)
 
         hp = int(len(x_per)/2)
         lower_x, upper_x = half_max_x(x_per[hp:], P_per[hp:])
 
         fwhm_.append(upper_x - lower_x)
-        #if klist[i-1] == 1: fwhm_.append(np.pi - (upper_x - lower_x))
-        #else: fwhm_.append(upper_x - lower_x)
 
         '''Linear'''
-        
         x_per_l, P_per_l = stat_den_strat_l(om, D, D2, T, f_lin, g_lin, dt_l, 
                                             osc=False, Nb=1000, sig=-sig_, lim=lim, lin='zero')
         xmax_l = find_max(x_per_l, P_per_l)
         p_max_lin.append(xmax_l)
-
-        #hp = int(0.75*len(x_per_l))
+      
         lower_x_l, upper_x_l = half_max_x(x_per_l, P_per_l)
         fwhm_l.append(upper_x_l - lower_x_l)
 
@@ -1634,15 +1319,8 @@ def max_fwhm_om(om0=1, sig=-1, om_inc=0.4, D2=0, T=10000, dt=0.001, # lim=np.pi
             ax2.set_xlim([0, np.pi])
 
     p_max_osc = np.array(p_max4)+np.pi
-    #for i in range(5):
-    #  p_max_osc[3+i] += 0 
 
     return(om_list, p_max_osc, p_max_lin, fwhm_l, fwhm_, max_an)
-
-def smooth(y, box_pts):
-    box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')
-    return y_smooth
 
 def plot_max_fwhm(Dlist, p_max_osc, p_max_lin, fwhm_l, fwhm_, 
                   m_an, save=None, sh_lin=True, s_=1, an_sin=False):
@@ -1654,16 +1332,7 @@ def plot_max_fwhm(Dlist, p_max_osc, p_max_lin, fwhm_l, fwhm_,
 
     sns.set_theme(style="white", rc=params)
 
-    #m_an_l = np.array([max_an_lin(x) for x in Dlist])
-    #one_x = 1.06*np.array([1/x for x in Dlist])
-
     p_max_osc_clean = p_max_osc.copy()
-
-    #p_max_osc_clean[0] += 0.02
-    #for i in range(17):
-    #    p_max_osc_clean[2+i] -= 0.02
-    #for i in range(5,10):
-    #    p_max_osc_clean[2+i] += 0.01
 
     f, (ax, ax2) = plt.subplots(1, 2, figsize=(7.6, 3.6))
 
@@ -1680,7 +1349,6 @@ def plot_max_fwhm(Dlist, p_max_osc, p_max_lin, fwhm_l, fwhm_,
 
     if an_sin==True:
         # code is contained in root finder 
-        # I should write this up 
         df=pd.read_csv("/Users/tphillips/multiplicative_noise/c++/DATA/trial10.dat",sep=" ",header=None)
         df = df.dropna(axis='columns',how='all')
         df.columns=['D1','max']
@@ -1689,7 +1357,6 @@ def plot_max_fwhm(Dlist, p_max_osc, p_max_lin, fwhm_l, fwhm_,
     c = p_max_osc_clean[4]/m_an[4]
     ax.plot(Dlist, c*np.array(m_an), 'g-', label=s_lab)
     ax.plot(Dlist, p_max_osc_clean, 'go', markersize=7, mec = 'k')
-    #ax.plot(Dlist, smooth(p_max_osc_clean, 3), 'g-', markersize=7, mec = 'k', label=s_lab2)
 
     #ax.set_ylim([0,1])
     ax.legend(fontsize=17)
@@ -1705,12 +1372,9 @@ def plot_max_fwhm(Dlist, p_max_osc, p_max_lin, fwhm_l, fwhm_,
         c = fwhm_l[7]/m_an[7]
         ax2.plot(Dlist, c*np.array(m_an), 'b-')
         ax2.plot(Dlist, fwhm_l, 'bo', markersize=7, mec = 'k', label='Lin. (Num.)')
-        #ax2.set_xlim([0,8])
-        #ax2.set_ylim([0,1.5])
-        #s_lab = 'Sin. (Num.)'
         s_lin = '_lin_'
     else:
-        s_lab = None #'Num.'
+        s_lab = None 
 
     c = fwhm_[4]/m_an[4]
     ax2.plot(Dlist, c*np.array(m_an), 'g-')
@@ -1772,16 +1436,11 @@ def plot_stat_dis(x_osc, P_osc, x_lin, P_lin, ax=None, f=None,
     df.columns=['phi', 'D1', 'D2', 'P', 'Pn', 'I', 'PdB']
     y = np.array(df['Pn'])
     x = np.arange(-np.pi, np.pi, 2*np.pi/len(y))
-    #ax[a,0].plot(x, y, 'k+', markersize=5, mec = 'k')
     ax[a,0].plot(x_osc[::5], P_osc[::5], 'k+', markersize=5, mec = 'k')
 
     if lin: 
         print("linear_Dm"+str(D1)+"_sigm1.txt")
-        #df=pd.read_csv("/Users/tphillips/multiplicative_noise/linear_Dm"+str(D1)+"_sigm1.txt", sep='\t', header=None)
-        #df.columns=['phi', 'P']
-        #df = df.sort_values(by=['phi'])
         scale = np.max(P_lin_)/np.max(df['P'])
-        #ax[a,0].plot(df['phi'][::10], scale*np.array(df['P'][::10]), 'ro', markersize=5, mec = 'k')
 
         ax[a,0].plot(x_lin[::10], P_lin_[::10], 'ro', markersize=5, mec = 'k')
     
@@ -1792,18 +1451,11 @@ def plot_stat_dis(x_osc, P_osc, x_lin, P_lin, ax=None, f=None,
     ax[a,0].set_xlim([-np.pi, np.pi])
     if ylim: ax[a,0].set_ylim(ylim)
 
-    #
-
     dt = 0.000001
     T = 20
-
-    #@jit(nopython=True)
-    #def f_sin(X, om, lam=0):
-    #    return(om + lam*np.sin(X))
     
     tl, xl = SDE_ev(om, D1, D2, T, f_sin, g, dt, xinit=1, osc=True, meth='strat', g_der=g_d, n=sig)
     
-    #detlist = osc_mod(om*np.array(tl))
     # this should be replaced by the general deterministic trajectory.
     tl, detlist = SDE_ev(om, 0, 0, T, f_sin, g, dt, xinit=1, osc=True, meth='strat', g_der=g_d, n=sig)
 
